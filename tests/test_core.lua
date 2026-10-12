@@ -168,17 +168,49 @@ test("removing stitches from 40 on leaves a small scratch that is tracked", func
     near(line.progress, 0)
 end)
 
-test("a new injury on the same wound restarts from 0%", function()
+test("walking barefoot on a scratched foot lowers progress instead of resetting it", function()
+    local bp = newBodyPart()
+    local store = trackedStore(bp)
+    bp.scratchTime = 10
+    scan(store, bp)
+    heal(bp, 6)
+    scan(store, bp)
+    near(onlyLine(store, bp).progress, 0.6)
+    bp.scratchTime = bp.scratchTime + 2 -- IsoPlayer.updateFootInjuries adds up to 3
+    scan(store, bp)
+    near(onlyLine(store, bp).progress, 0.4)
+end)
+
+test("a wound that gets worse than ever is measured from its new worst", function()
     local bp = newBodyPart()
     local store = trackedStore(bp)
     bp.scratchTime = 10
     scan(store, bp)
     heal(bp, 5)
     scan(store, bp)
-    near(onlyLine(store, bp).progress, 0.5)
-    bp.scratchTime = 8 -- rolled lower than the first scratch, higher than what was left
+    bp.scratchTime = 8 -- a new scratch rolled lower than the first one
+    scan(store, bp)
+    near(onlyLine(store, bp).progress, 0.2, "still measured from 10")
+    bp.scratchTime = 12 -- and one rolled higher
     scan(store, bp)
     near(onlyLine(store, bp).progress, 0)
+    heal(bp, 3)
+    near(onlyLine(store, bp).progress, 0.25, "measured from 12")
+end)
+
+test("a full heal (debug or RestoreToFullHealth) clears every line", function()
+    local bp = newBodyPart()
+    local store = trackedStore(bp)
+    bp.cutTime = 10
+    bp.fractureTime = 40
+    bp.splintFactor = 2
+    bp.isBandaged = true
+    scan(store, bp)
+    -- RestoreToFullHealth zeroes every timer and takes off bandage, stitches and splint.
+    bp.cutTime, bp.fractureTime, bp.splintFactor, bp.isBandaged = 0, 0, 0, false
+    scan(store, bp)
+    eq(#lines(store, bp), 0)
+    eq(count(store.parts), 0)
 end)
 
 test("a new injury after healing under a bandage is tracked again", function()
@@ -248,9 +280,13 @@ test("wounds already there on the first scan are estimated", function()
     eq(l[2].label, "IGUI_health_Fracture")
     eq(l[2].est, true)
     near(l[2].progress, 0, "worse than the usual start")
-    bp.scratchTime = 12 -- a new scratch on top
+    bp.scratchTime = 12 -- worse, but not worse than the guess
     scan(store, bp)
-    eq(lines(store, bp)[1].est, false, "new injury is seen starting")
+    eq(lines(store, bp)[1].est, true, "still a guess")
+    bp.scratchTime = 20 -- worse than the guess: now we saw its worst
+    scan(store, bp)
+    eq(lines(store, bp)[1].est, false)
+    near(lines(store, bp)[1].progress, 0)
 end)
 
 test("the first-scan flag is saved in the store", function()

@@ -34,7 +34,9 @@ The game only keeps the time a wound has left (`BodyPart.DamageUpdate`, B42.21).
 
 Traits (Thick/Thin Skinned, Fast/Slow Healer) and the Injury Severity sandbox option scale these.
 
-So the mod remembers the value each wound started at and shows `1 - remaining / start`. It checks every in-game minute for local players, so wounds are caught when they happen even if the Health tab is closed, and every frame while a health panel is open. The starting values are kept in the player's mod data, so they survive save and load. Timers only go down while healing, so if one goes up, the mod treats it as a new injury and starts again from 0%.
+So the mod remembers the value each wound started at and shows `1 - remaining / start`. It checks every in-game minute for local players, so wounds are caught when they happen even if the Health tab is closed, and every frame while a health panel is open. The starting values are kept in the player's mod data, so they survive save and load.
+
+A wound can get worse before it heals: walking barefoot or in broken shoes adds to a foot's scratch or cut, and a new scratch, cut or fracture on the same body part replaces the timer with a new roll. The mod then measures from the worst the wound has been, so the percentage drops instead of starting over. A wound that healed and comes back starts again from 0%.
 
 When it did not see a wound start, it guesses the start as the largest value the game usually rolls (table above) and marks the result with `~`.
 

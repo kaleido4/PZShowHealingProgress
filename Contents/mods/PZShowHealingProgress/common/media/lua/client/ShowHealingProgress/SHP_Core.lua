@@ -7,6 +7,13 @@
     remember the value each wound started at (its peak) and show
     1 - remaining / peak.
 
+    A wound can also get worse before it heals: walking barefoot or in broken
+    shoes adds up to 3 to a foot's scratch or cut (IsoPlayer.updateFootInjuries),
+    a new scratch, cut or fracture on the same body part replaces the timer with
+    a new roll, and an unbandaged deep wound is pushed back up to 3. The peak
+    then moves up to the worst value seen, so progress drops instead of
+    starting over. A wound that healed and comes back starts again from 0%.
+
     Stitches work the other way: stitching zeroes the deep wound timer and a
     stitch timer counts up instead. Stitches can be removed safely from 40 on
     (removing them earlier reopens the deep wound), so their progress is
@@ -20,9 +27,8 @@
     Store layout (lives in the player's mod data, so it is saved with the game):
         store.init           true after the first scan
         store.parts[index]   records of one body part, by BodyPart:getIndex()
-            [wound id] = { peak, last, est, done }
-                peak  value the wound started at
-                last  value at the last scan
+            [wound id] = { peak, est, done }
+                peak  worst value the wound has had
                 est   start was not seen (wound existed before the mod was
                       added, or another player's body): peak is a guess
                 done  healed, kept while the body part still has treatment
@@ -44,8 +50,6 @@ SHP.STITCH_LABEL = "IGUI_health_Stitched"
 SHP.STITCH_REMOVABLE = 40
 -- A deep wound stops healing at 3 unless it is bandaged and free of glass.
 SHP.DEEP_WOUND_FLOOR = 3
--- Timers only go down while healing, so a rise means a new injury.
-SHP.RISE_EPSILON = 0.01
 
 local function clamp01(v)
     if v < 0 then return 0 end
@@ -60,14 +64,6 @@ end
 
 function SHP.hasTreatment(bp)
     return bp:bandaged() or SHP.isStitched(bp) or bp:isSplint() or bp:getSplintFactor() > 0
-end
-
-local function isNewInjury(wound, value, rec)
-    if rec.done or rec.last == nil then return true end
-    if value <= rec.last + SHP.RISE_EPSILON then return false end
-    -- The game lifts an unbandaged deep wound back up to the floor; that is not a new wound.
-    if wound.id == "deepWound" and value <= SHP.DEEP_WOUND_FLOOR + SHP.RISE_EPSILON then return false end
-    return true
 end
 
 local function isEmpty(t)
@@ -91,17 +87,20 @@ function SHP.updatePart(store, bp, seenStart)
             -- Stitching zeroes the timer without healing it; the stitch line takes over.
             part[wound.id] = nil
         elseif value > 0 then
-            if not rec or isNewInjury(wound, value, rec) then
+            if not rec or rec.done then
+                -- A new wound, or a healed one that came back.
                 local est = not seenStart and not rec
                 rec = { peak = value, est = est }
                 if est then rec.peak = math.max(value, wound.typical) end
                 part[wound.id] = rec
+            elseif value > rec.peak then
+                -- Worse than ever seen (and worse than any guess): measure from here.
+                rec.peak = value
+                rec.est = false
             end
-            rec.last = value
         elseif rec then
             if treated then
                 rec.done = true
-                rec.last = 0
             else
                 part[wound.id] = nil
             end
