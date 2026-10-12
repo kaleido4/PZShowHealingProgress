@@ -1,7 +1,7 @@
 name=Show Healing Progress
 id=PZShowHealingProgress
 author=kaleido4
-modversion=1.0.0
+modversion=1.1.0
 versionMin=42.0.0
 poster=poster.png
 icon=icon.png
