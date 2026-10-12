@@ -1,6 +1,8 @@
 version=1
 title=Show Healing Progress
-description=Shows how far each wound has healed in the Health tab, for example "- Fracture: 45% healed" under the body part.
+description=Shows how far each wound has healed in the Health tab, under the body part.
+description=Ex: "- Fracture: 45% healed"
+description=
 description=[list]
 description=[*]Works for scratches, lacerations, deep wounds, bites, burns, fractures and stitches. A body part with several wounds gets one line per wound.
 description=[*]When a wound is healed, the line stays at 100% while a bandage, stitches or a splint is still on the body part, so you know it can come off. Once you take it off, the line goes away.
