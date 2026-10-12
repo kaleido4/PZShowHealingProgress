@@ -11,6 +11,11 @@
     frame while a health panel is open. Another player's body is only tracked
     while we look at it, so wounds already there when we first look show an
     estimate ("~").
+
+    The lines only show to someone with at least the First Aid level set in
+    the sandbox (RequiredFirstAidLevel, 0 = anyone): the player looking at
+    their own body, or whoever is treating another player. Tracking carries on
+    either way, so the numbers are right as soon as the level is reached.
 --]]
 
 require "XpSystem/ISUI/ISHealthPanel"
@@ -20,7 +25,6 @@ local MOD_DATA_KEY = "ShowHealingProgress"
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local LINE_X = 15        -- same indent as the vanilla wound lines
 local ITEM_BOTTOM_GAP = 5 -- vanilla doDrawItem ends with y = y + 5
-local TEXT_R, TEXT_G, TEXT_B = 0.55, 0.8, 1.0 -- light blue, apart from the vanilla red and green
 
 local remoteStores = {} -- other players' bodies, by username, this session only
 
@@ -60,6 +64,14 @@ local function scanLocalPlayers()
     end
 end
 
+-- Read live from whoever is looking: ISHealthPanel.doctorLevel is taken once,
+-- when the panel is made, and from the patient rather than the one treating.
+local function viewerCanSee(panel)
+    if SHP.requiredLevel() == 0 then return true end
+    local doctor = panel.getDoctor and panel:getDoctor()
+    return doctor ~= nil and SHP.canSee(doctor:getPerkLevel(Perks.Doctor))
+end
+
 local function lineText(line)
     local pct = SHP.percent(line.progress) .. "%"
     if line.est and line.progress < 1 then pct = "~" .. pct end
@@ -83,13 +95,15 @@ function ISHealthBodyPartListBox:doDrawItem(y, item, alt)
     y = originalDoDrawItem(self, y, item, alt)
     local bodyPart = item.item and item.item.bodyPart
     if not bodyPart or not self.parent or not self.parent.getPatient then return y end
+    if not viewerCanSee(self.parent) then return y end
 
     local lines = SHP.getLines(storeFor(self.parent:getPatient()), bodyPart)
     if #lines == 0 then return y end
 
+    local r, g, b = SHP.textColor()
     y = y - ITEM_BOTTOM_GAP
     for _, line in ipairs(lines) do
-        self:drawText(lineText(line), LINE_X, y, TEXT_R, TEXT_G, TEXT_B, 1, UIFont.Small)
+        self:drawText(lineText(line), LINE_X, y, r, g, b, 1, UIFont.Small)
         y = y + FONT_HGT_SMALL
     end
     return y + ITEM_BOTTOM_GAP

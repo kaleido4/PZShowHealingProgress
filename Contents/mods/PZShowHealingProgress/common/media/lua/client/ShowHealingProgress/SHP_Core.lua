@@ -160,6 +160,61 @@ function SHP.getLines(store, bp)
     return lines
 end
 
+-- Sandbox: First Aid level needed to see the lines, 0 (anyone) to 10.
+function SHP.requiredLevel()
+    local vars = SandboxVars and SandboxVars.PZShowHealingProgress
+    local level = vars and tonumber(vars.RequiredFirstAidLevel) or 0
+    return math.max(0, math.min(10, level))
+end
+
+-- Whether someone with this First Aid level may see the lines.
+function SHP.canSee(firstAidLevel)
+    return (firstAidLevel or 0) >= SHP.requiredLevel()
+end
+
+-- Sandbox TextColor: a hex color like "8CCCFF" (the sandbox page has a color
+-- picker for it, see SHP_SandboxColor.lua). Light blue unless set.
+SHP.DEFAULT_COLOR_HEX = "8CCCFF"
+
+local HEX_DIGITS = "0123456789ABCDEF"
+
+-- "8CCCFF" or "#8cccff" -> r, g, b in 0..1; nil if it is not a 6-digit hex color.
+function SHP.parseColor(text)
+    if type(text) ~= "string" then return nil end
+    local hex = string.match(text, "^%s*#?(%x%x%x%x%x%x)%s*$")
+    if not hex then return nil end
+    return tonumber(string.sub(hex, 1, 2), 16) / 255,
+        tonumber(string.sub(hex, 3, 4), 16) / 255,
+        tonumber(string.sub(hex, 5, 6), 16) / 255
+end
+
+-- r, g, b in 0..1 -> "8CCCFF".
+function SHP.toHex(r, g, b)
+    local out = ""
+    for _, v in ipairs({ r, g, b }) do
+        local n = math.floor(math.max(0, math.min(1, v)) * 255 + 0.5)
+        local hi, lo = math.floor(n / 16), n % 16
+        out = out .. string.sub(HEX_DIGITS, hi + 1, hi + 1) .. string.sub(HEX_DIGITS, lo + 1, lo + 1)
+    end
+    return out
+end
+
+-- r, g, b of the text, from the sandbox TextColor option. Drawn every frame,
+-- so the last parse is kept. lastText starts as a value no option can have,
+-- so the first call always parses (even when the option is missing: nil).
+local NOT_PARSED = {}
+local lastText, lastR, lastG, lastB = NOT_PARSED
+function SHP.textColor()
+    local vars = SandboxVars and SandboxVars.PZShowHealingProgress
+    local text = vars and vars.TextColor
+    if text ~= lastText then
+        lastText = text
+        lastR, lastG, lastB = SHP.parseColor(text)
+        if not lastR then lastR, lastG, lastB = SHP.parseColor(SHP.DEFAULT_COLOR_HEX) end
+    end
+    return lastR, lastG, lastB
+end
+
 -- Whole percent, rounded down so 100 only shows once the wound is really healed.
 function SHP.percent(progress)
     return math.floor(progress * 100)

@@ -1,4 +1,5 @@
 version=1
+id=3818514049
 title=Show Healing Progress
 description=Shows how far each wound has healed in the Health tab, under the body part.
 description=Ex: "- Fracture: 45% healed"
@@ -18,5 +19,5 @@ description=Can be added to existing saves. Wounds you already have show an esti
 description=
 description=Does not replace game files.
 description=Build 42.
-tags=Build 42;Interface;Misc;QoL
+tags=Build 42;Interface;Misc;Multiplayer;Realistic;QoL
 visibility=public

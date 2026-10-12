@@ -19,6 +19,17 @@ Left Forearm
 - A deep wound that stopped healing says why: it needs a bandage, or there is still glass inside.
 - Wounds that were already there when the mod first ran show an estimate, marked `~`. The same goes for another player's wounds the first time you look at them.
 
+## Sandbox options
+
+| Option | Values | Default |
+|---|---|---|
+| Required First Aid Level | 0-10 | 0 |
+| Text Color | any color (hex, e.g. `8CCCFF`) | `8CCCFF` (light blue) |
+
+The First Aid level needed to see the lines; 0 means anyone. On your own Health tab your level counts; when treating another player, the level of the one treating counts. It is read live, so the lines appear as soon as the level is reached (the vanilla `ISHealthPanel.doctorLevel` is only read when the panel is made, and from the patient). Wounds are tracked either way, so the numbers are right from the moment they show.
+
+Mod sandbox options have no color type (only boolean, integer, double, string and enum), so Text Color is a string holding a hex color. On the new game sandbox page its text box is replaced with a color square that opens the game's HSB color picker (`ISColorPickerHSB`, the one the debug item editor uses for clothing), next to a hex box that can still be typed in (`SHP_SandboxColor.lua`, wrapping `SandboxOptionsScreen:createControlForSetting`). The host server settings and the in-game admin panel build their controls inline, so there it stays a plain hex box. Anything that is not a hex color falls back to light blue.
+
 ## How it works
 
 The game only keeps the time a wound has left (`BodyPart.DamageUpdate`, B42.21). Each wound timer starts at a random value and counts down to 0, which is when the wound is healed:
@@ -53,7 +64,10 @@ Contents/mods/PZShowHealingProgress/
   common/media/lua/
     client/ShowHealingProgress/SHP_Core.lua     wound tracking (unit-tested)
     client/ShowHealingProgress/SHP_Client.lua   health panel lines
+    client/ShowHealingProgress/SHP_SandboxColor.lua   color picker on the sandbox page
     shared/Translate/EN/IG_UI.json
+    shared/Translate/EN/Sandbox.json
+  common/media/sandbox-options.txt
 tests/                                          Kahlua test runner and tests
 ```
 

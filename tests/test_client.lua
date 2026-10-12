@@ -27,6 +27,8 @@ local function setupGame(opts)
     end
     getNumActivePlayers = function() return #game.players end
     getSpecificPlayer = function(i) return game.players[i + 1] end
+    Perks = { Doctor = "Doctor" }
+    SandboxVars = { PZShowHealingProgress = { RequiredFirstAidLevel = opts.required, TextColor = opts.color } }
 
     ISHealthPanel = {}
     function ISHealthPanel:update() self.vanillaUpdates = (self.vanillaUpdates or 0) + 1 end
@@ -49,8 +51,10 @@ end
 
 local function newPlayer(parts, opts)
     opts = opts or {}
-    local p = { modData = {}, parts = parts, isLocal = opts.isLocal ~= false, dead = false, username = opts.username or "bob" }
+    local p = { modData = {}, parts = parts, isLocal = opts.isLocal ~= false, dead = false, username = opts.username or "bob",
+                firstAid = opts.firstAid or 0 }
     function p:getModData() return self.modData end
+    function p:getPerkLevel(perk) return perk == Perks.Doctor and self.firstAid or 0 end
     function p:isLocalPlayer() return self.isLocal end
     function p:isDead() return self.dead end
     function p:getUsername() return self.username end
@@ -65,10 +69,12 @@ local function newPlayer(parts, opts)
     return p
 end
 
-local function newPanel(patient)
+-- doctor: the one treating, when it is not the patient (ISHealthPanel.otherPlayer).
+local function newPanel(patient, doctor)
     local panel = setmetatable({ visible = true }, { __index = ISHealthPanel })
     function panel:isReallyVisible() return self.visible end
     function panel:getPatient() return patient end
+    function panel:getDoctor() return doctor or patient end
     local list = setmetatable({ parent = panel, texts = {} }, { __index = ISHealthBodyPartListBox })
     function list:drawText(text, x, y, r, g, b, a, font)
         self.texts[#self.texts + 1] = { text = text, x = x, y = y, r = r, g = g, b = b }
@@ -99,8 +105,8 @@ test("adds a line under the body part and makes the item taller", function()
     eq(#list.texts, 2)
     eq(list.texts[2].text, "- IGUI_health_Cut: 25% healed")
     eq(list.texts[2].x, 15)
-    near(list.texts[2].r, 0.55, "light blue r")
-    near(list.texts[2].g, 0.8, "light blue g")
+    near(list.texts[2].r, 0x8C / 255, "light blue r")
+    near(list.texts[2].g, 0xCC / 255, "light blue g")
     near(list.texts[2].b, 1.0, "light blue b")
     eq(list.texts[2].y, 110, "right below the vanilla lines, before the gap")
     eq(bottom, 100 + FONT_HEIGHT * 2 + 5, "vanilla gap kept at the bottom")
@@ -264,6 +270,95 @@ test("dead players are skipped by the minute scan", function()
     game.players = { player }
     fire("EveryOneMinute")
     eq(player.modData.ShowHealingProgress, nil)
+end)
+
+test("lines are hidden below the required First Aid level", function()
+    local bp = newBodyPart()
+    local game = setupGame({ required = 3 })
+    local player = newPlayer({ bp }, { firstAid = 2 })
+    game.players = { player }
+    fire("OnCreatePlayer", 0, player)
+    bp.cutTime = 20
+    local panel, list = newPanel(player)
+    panel:update()
+    eq(draw(list, bp, 100), 115, "vanilla height")
+    eq(#list.texts, 1, "only the vanilla line")
+end)
+
+test("lines show from the required level on", function()
+    local bp = newBodyPart()
+    local game = setupGame({ required = 3 })
+    local player = newPlayer({ bp }, { firstAid = 3 })
+    game.players = { player }
+    fire("OnCreatePlayer", 0, player)
+    bp.cutTime = 20
+    local panel, list = newPanel(player)
+    panel:update()
+    draw(list, bp)
+    eq(list.texts[2].text, "- IGUI_health_Cut: 0% healed")
+end)
+
+test("tracking carries on while hidden, so a level up shows the real number", function()
+    local bp = newBodyPart()
+    local game = setupGame({ required = 3 })
+    local player = newPlayer({ bp }, { firstAid = 1 })
+    game.players = { player }
+    fire("OnCreatePlayer", 0, player)
+    bp.scratchTime = 10
+    fire("EveryOneMinute")
+    heal(bp, 6)
+    local panel, list = newPanel(player)
+    panel:update()
+    draw(list, bp)
+    eq(#list.texts, 1, "hidden at level 1")
+    player.firstAid = 3 -- leveled up, same panel still open
+    draw(list, bp)
+    eq(list.texts[2].text, "- IGUI_health_Scratched: 60% healed")
+end)
+
+test("when treating another player, the one treating needs the level", function()
+    local bp = newBodyPart()
+    bp.cutTime = 10
+    local game = setupGame({ client = true, required = 5 })
+    local patient = newPlayer({ bp }, { isLocal = false, username = "alice", firstAid = 10 })
+    local novice = newPlayer({}, { firstAid = 2 })
+    local panel, list = newPanel(patient, novice)
+    panel:update()
+    draw(list, bp)
+    eq(#list.texts, 1, "the patient's own level does not count")
+    local medic = newPlayer({}, { firstAid = 5 })
+    panel, list = newPanel(patient, medic)
+    panel:update()
+    draw(list, bp)
+    eq(list.texts[2].text, "- IGUI_health_Cut: ~50% healed")
+end)
+
+test("level 0 needs no First Aid at all", function()
+    local bp = newBodyPart()
+    local game = setupGame({ required = 0 })
+    local player = newPlayer({ bp }, { firstAid = 0 })
+    game.players = { player }
+    fire("OnCreatePlayer", 0, player)
+    bp.burnTime = 50
+    local panel, list = newPanel(player)
+    panel:update()
+    draw(list, bp)
+    eq(list.texts[2].text, "- IGUI_health_Burned: 0% healed")
+end)
+
+test("lines are drawn in the sandbox text color", function()
+    local bp = newBodyPart()
+    local game = setupGame({ color = "FFE659" }) -- yellow
+    local player = newPlayer({ bp })
+    game.players = { player }
+    fire("OnCreatePlayer", 0, player)
+    bp.cutTime = 20
+    local panel, list = newPanel(player)
+    panel:update()
+    draw(list, bp)
+    near(list.texts[2].r, 1, "r")
+    near(list.texts[2].g, 0xE6 / 255, "g")
+    near(list.texts[2].b, 0x59 / 255, "b")
 end)
 
 finish("SHP client")

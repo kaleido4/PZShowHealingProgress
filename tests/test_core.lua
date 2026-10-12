@@ -348,4 +348,63 @@ test("body parts are tracked separately", function()
     near(onlyLine(store, b).progress, 0.25)
 end)
 
+test("no sandbox setting means anyone can see", function()
+    SandboxVars = nil
+    eq(SHP.requiredLevel(), 0)
+    eq(SHP.canSee(0), true)
+    SandboxVars = { PZShowHealingProgress = {} }
+    eq(SHP.requiredLevel(), 0)
+end)
+
+test("required First Aid level gates who can see", function()
+    SandboxVars = { PZShowHealingProgress = { RequiredFirstAidLevel = 3 } }
+    eq(SHP.canSee(2), false)
+    eq(SHP.canSee(3), true)
+    eq(SHP.canSee(10), true)
+    eq(SHP.canSee(nil), false)
+    SandboxVars = nil
+end)
+
+test("required level is kept within 0-10", function()
+    SandboxVars = { PZShowHealingProgress = { RequiredFirstAidLevel = 15 } }
+    eq(SHP.requiredLevel(), 10)
+    SandboxVars = { PZShowHealingProgress = { RequiredFirstAidLevel = -2 } }
+    eq(SHP.requiredLevel(), 0)
+    SandboxVars = nil
+end)
+
+test("text color defaults to light blue", function()
+    SandboxVars = nil
+    local r, g, b = SHP.textColor()
+    near(r, 0x8C / 255) near(g, 0xCC / 255) near(b, 1)
+end)
+
+test("text color follows the sandbox hex color", function()
+    SandboxVars = { PZShowHealingProgress = { TextColor = "FF0080" } }
+    local r, g, b = SHP.textColor()
+    near(r, 1) near(g, 0) near(b, 128 / 255)
+    SandboxVars = { PZShowHealingProgress = { TextColor = "#ffffff" } }
+    r, g, b = SHP.textColor()
+    near(r, 1) near(g, 1) near(b, 1)
+    SandboxVars = nil
+end)
+
+test("anything that is not a hex color falls back to light blue", function()
+    for _, bad in ipairs({ "", "blue", "12345", "1234567", "GG0000", 1 }) do
+        SandboxVars = { PZShowHealingProgress = { TextColor = bad } }
+        local r, g, b = SHP.textColor()
+        near(r, 0x8C / 255, tostring(bad)) near(g, 0xCC / 255) near(b, 1)
+    end
+    SandboxVars = nil
+end)
+
+test("hex colors parse and format both ways", function()
+    local r, g, b = SHP.parseColor(" #8cccff ")
+    near(r, 140 / 255) near(g, 204 / 255) near(b, 1)
+    eq(SHP.toHex(r, g, b), "8CCCFF")
+    eq(SHP.toHex(0, 0.5, 1), "0080FF")
+    eq(SHP.toHex(-1, 2, 0.0039), "00FF01", "clamped and rounded")
+    eq(SHP.parseColor("nope"), nil)
+end)
+
 finish("SHP core")
