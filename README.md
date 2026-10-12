@@ -24,11 +24,11 @@ Left Forearm
 | Option | Values | Default |
 |---|---|---|
 | Required First Aid Level | 0-10 | 0 |
-| Text Color | any color (hex, e.g. `8CCCFF`) | `8CCCFF` (light blue) |
+| Text Color | a color from the game's color grid | light blue (`8CCCFF`) |
 
 The First Aid level needed to see the lines; 0 means anyone. On your own Health tab your level counts; when treating another player, the level of the one treating counts. It is read live, so the lines appear as soon as the level is reached (the vanilla `ISHealthPanel.doctorLevel` is only read when the panel is made, and from the patient). Wounds are tracked either way, so the numbers are right from the moment they show.
 
-Mod sandbox options have no color type (only boolean, integer, double, string and enum), so Text Color is a string holding a hex color. On the new game sandbox page its text box is replaced with a color square that opens the game's HSB color picker (`ISColorPickerHSB`, the one the debug item editor uses for clothing), next to a hex box that can still be typed in (`SHP_SandboxColor.lua`, wrapping `SandboxOptionsScreen:createControlForSetting`). The host server settings and the in-game admin panel build their controls inline, so there it stays a plain hex box. Anything that is not a hex color falls back to light blue.
+Mod sandbox options have no color type (only boolean, integer, double, string and enum), so Text Color is stored as a string holding a hex color. Wherever sandbox options are shown, its text box is replaced with a color button like the ones in Options > Display: a square in the current color that opens the game's color grid (`ISColorPicker`) under it (`SHP_SandboxColor.lua`). The new game page makes its controls in `SandboxOptionsScreen:createControlForSetting`, so the button is made there; the in-game sandbox options (`ISServerSandboxOptionsUI`) and the host server settings (`ServerSettingsScreen`) build controls inline, so the text box is swapped for the button after each page is built. The screens read and write the value through the control's `getText`/`setText`, which the button keeps. A value that is not a hex color falls back to light blue.
 
 ## How it works
 
@@ -64,7 +64,7 @@ Contents/mods/PZShowHealingProgress/
   common/media/lua/
     client/ShowHealingProgress/SHP_Core.lua     wound tracking (unit-tested)
     client/ShowHealingProgress/SHP_Client.lua   health panel lines
-    client/ShowHealingProgress/SHP_SandboxColor.lua   color picker on the sandbox page
+    client/ShowHealingProgress/SHP_SandboxColor.lua   color button on the sandbox screens
     shared/Translate/EN/IG_UI.json
     shared/Translate/EN/Sandbox.json
   common/media/sandbox-options.txt

@@ -1,10 +1,13 @@
 dofile(ROOT .. "/tests/harness.lua")
 
+local OPTION = "PZShowHealingProgress.TextColor"
+
 -- Just enough of the vanilla UI classes for SHP_SandboxColor.lua. instantiate()
--- builds the children, as ISUIElement:instantiate does.
+-- builds the children, as ISUIElement:instantiate does; classes are made the
+-- way derive() makes them (an instance's metatable is its class).
 local function setupUI()
     require = function() end
-    UIFont = { Medium = "Medium" }
+    Joypad = { AButton = "A", BButton = "B" }
 
     ISUIElement = { Type = "ISUIElement" }
     ISUIElement.__index = ISUIElement
@@ -22,15 +25,23 @@ local function setupUI()
         if self.createChildren then self:createChildren() end
     end
     function ISUIElement:addChild(c) c.parent = self; self.children[#self.children + 1] = c end
+    function ISUIElement:removeChild(c)
+        for i, v in ipairs(self.children) do
+            if v == c then table.remove(self.children, i); break end
+        end
+        c.parent = nil
+    end
+    function ISUIElement:getX() return self.x end
+    function ISUIElement:getY() return self.y end
     function ISUIElement:getWidth() return self.width end
     function ISUIElement:getHeight() return self.height end
     function ISUIElement:setX(x) self.x = x end
     function ISUIElement:setY(y) self.y = y end
     function ISUIElement:getAbsoluteX() return (self.parent and self.parent:getAbsoluteX() or 0) + self.x end
     function ISUIElement:getAbsoluteY() return (self.parent and self.parent:getAbsoluteY() or 0) + self.y end
-    function ISUIElement:addToUIManager() self.onScreen = true end
-    function ISUIElement:removeFromUIManager() self.onScreen = false end
-    function ISUIElement:setAlwaysOnTop(b) self.alwaysOnTop = b end
+    function ISUIElement:setCapture(b) self.capture = b end
+    function ISUIElement:setVisible(b) self.visible = b end
+    function ISUIElement:bringToTop() self.onTop = true end
 
     ISPanel = ISUIElement:derive("ISPanel")
     function ISPanel:new(x, y, w, h) return ISUIElement.new(self, x, y, w, h) end
@@ -50,26 +61,20 @@ local function setupUI()
     end
     function ISTextEntryBox:getText() return self.text end
     function ISTextEntryBox:setText(t) self.text = t end
-    function ISTextEntryBox:onTextChange()
-        if self.onTextChangeFunction then self.onTextChangeFunction(self.target, self) end
+
+    ColorInfo = { new = function(r, g, b, a) return { r = r, g = g, b = b, a = a } end }
+
+    ISColorPicker = ISUIElement:derive("ISColorPicker")
+    function ISColorPicker:new(x, y) return ISUIElement.new(self, x, y, 300, 120) end
+    function ISColorPicker:setInitialColor(info) self.initial = info end
+    -- What the grid does when a color is clicked: report it, then close.
+    function ISColorPicker:pick(color)
+        self.parent:removeChild(self)
+        self.pickedFunc(self.pickedTarget, color, true)
     end
 
-    ColorInfo = { new = function()
-        local c = {}
-        function c:set(r, g, b, a) self.r, self.g, self.b, self.a = r, g, b, a end
-        return c
-    end }
-
-    ISColorPickerHSB = ISUIElement:derive("ISColorPickerHSB")
-    function ISColorPickerHSB:new(x, y, info)
-        local o = ISUIElement.new(self, x, y, 400, 230)
-        o.initial = info
-        return o
-    end
-    function ISColorPickerHSB:setInitialColor(info) self.initial = info end
-
-    -- The vanilla page makes a text box for string options.
-    SandboxOptionsScreen = {}
+    -- New game page: makes a text box for string options.
+    SandboxOptionsScreen = ISUIElement:derive("SandboxOptionsScreen")
     function SandboxOptionsScreen:createControlForSetting(setting, tooltip)
         local c = ISTextEntryBox:new(setting.text, 0, 0, 300, 24)
         c.tooltip = tooltip
@@ -78,18 +83,62 @@ local function setupUI()
         return c
     end
 
+    -- In-game admin page: builds the controls inline and keeps them in tables.
+    ISServerSandboxOptionsUI = ISUIElement:derive("ISServerSandboxOptionsUI")
+    function ISServerSandboxOptionsUI:createPanel(page)
+        local panel = ISPanel:new(10, 40, 600, 400)
+        panel.controls, panel.joypadButtonsY = {}, {}
+        self:addChild(panel)
+        for i, setting in ipairs(page.settings) do
+            local c = ISTextEntryBox:new(setting.text, 250, i * 30, 200, 20)
+            c.tooltip = "tip"
+            panel:addChild(c)
+            self.controls[setting.name] = c
+            panel.controls[setting.name] = c
+            panel.joypadButtonsY[#panel.joypadButtonsY + 1] = { c }
+        end
+        return panel
+    end
+
+    -- Host settings: a local page class, reachable only through its object.
+    local Page3 = ISUIElement:derive("Page3")
+    function Page3:createPanel(category, page)
+        local panel = ISPanel:new(0, 0, 600, 400)
+        panel.controls = {}
+        self:addChild(panel)
+        self.controls[category] = self.controls[category] or {}
+        for i, setting in ipairs(page.settings) do
+            local c = ISTextEntryBox:new(setting.text, 250, i * 30, 200, 20)
+            panel:addChild(c)
+            self.controls[category][setting.name] = c
+            panel.controls[setting.name] = c
+        end
+        return panel
+    end
+    ServerSettingsScreen = ISUIElement:derive("ServerSettingsScreen")
+    function ServerSettingsScreen:create()
+        self.pageEdit = ISUIElement.new(Page3, 0, 0, 800, 600)
+        self.pageEdit.controls = {}
+        self:addChild(self.pageEdit)
+        self.pageEdit:createPanel("Mods", { settings = { { name = OPTION, text = "FF0000" } } })
+    end
+
     SHPColorControl = nil
     dofile(MOD .. "client/ShowHealingProgress/SHP_Core.lua")
     dofile(MOD .. "client/ShowHealingProgress/SHP_SandboxColor.lua")
 end
 
-local function colorSetting(text)
-    return { name = "PZShowHealingProgress.TextColor", type = "string", text = text }
+local function newGameControl(text, screenHeight)
+    local screen = ISUIElement.new(SandboxOptionsScreen, 0, 0, 1000, screenHeight or 800)
+    local c = screen:createControlForSetting({ name = OPTION, type = "string", text = text }, "tip")
+    c.x, c.y = 500, 200
+    screen.children = { c }
+    c.parent = screen
+    return c, screen
 end
 
-local function control(text)
-    local screen = setmetatable({}, { __index = SandboxOptionsScreen })
-    return screen:createControlForSetting(colorSetting(text), "tip")
+local function click(control)
+    control.button.onclick(control.button.target, control.button)
 end
 
 print("SHP sandbox color")
@@ -101,73 +150,108 @@ test("other options keep the page's own control", function()
     eq(c.Type, "ISTextEntryBox")
 end)
 
-test("TextColor gets a color square and a hex box, as big as the text box was", function()
+test("new game page: TextColor is a color button, no text box", function()
     setupUI()
-    local c = control("8CCCFF")
+    local c = newGameControl("8CCCFF")
     eq(c.Type, "SHPColorControl")
-    eq(c:getWidth(), 300)
+    eq(c:getWidth(), 300, "as wide as the text box was")
     eq(c:getHeight(), 24)
+    eq(#c.children, 1, "just the button")
+    eq(c.button.Type, "ISButton")
+    eq(c.button.x, 0, "at the start, where other controls start")
+    eq(c.button.width, 48, "a wide square, like Options")
+    eq(c.button.tooltip, "tip")
+    near(c.button.backgroundColor.r, 0x8C / 255)
+    near(c.button.backgroundColor.b, 1)
     eq(c:getText(), "8CCCFF")
-    near(c.swatch.backgroundColor.r, 0x8C / 255)
-    near(c.swatch.backgroundColor.b, 1)
-    eq(c.swatch.tooltip, "tip")
-    eq(c.entry.tooltip, "tip")
-    truthy(c.entry.x >= c.swatch.width, "hex box beside the square")
-    eq(c.entry.x + c.entry.width, 300, "fills the rest")
 end)
 
 test("the page's save and load go through getText and setText", function()
     setupUI()
-    local c = control("8CCCFF")
+    local c = newGameControl("8CCCFF")
     c:setText("FF0000") -- settingsToUI
     eq(c:getText(), "FF0000") -- settingsFromUI
-    near(c.swatch.backgroundColor.r, 1)
-    near(c.swatch.backgroundColor.g, 0)
+    near(c.button.backgroundColor.r, 1)
+    near(c.button.backgroundColor.g, 0)
+    c:setText("junk")
+    near(c.button.backgroundColor.r, 0x8C / 255, "shows the default for a bad value")
 end)
 
-test("typing a hex color updates the square", function()
+test("clicking the button opens the grid under it, on the screen", function()
     setupUI()
-    local c = control("8CCCFF")
-    c.entry.text = "00FF00"
-    c.entry:onTextChange()
-    near(c.swatch.backgroundColor.g, 1)
-    near(c.swatch.backgroundColor.r, 0)
-    c.entry.text = "not a color"
-    c.entry:onTextChange()
-    near(c.swatch.backgroundColor.r, 0x8C / 255, "default shown")
-    eq(c:getText(), "not a color", "what was typed is kept")
-end)
-
-test("clicking the square opens the picker under it with the current color", function()
-    setupUI()
-    local c = control("FF8000")
-    c.x, c.y = 500, 200
-    c.swatch.onclick(c.swatch.target, c.swatch)
+    local c, screen = newGameControl("FF8000")
+    click(c)
     local picker = c.picker
-    truthy(picker and picker.onScreen, "picker shown")
-    eq(picker.alwaysOnTop, true)
+    eq(picker.parent, screen, "on the screen, not in the scrolling page")
     eq(picker.x, 500)
-    eq(picker.y, 224, "just below the square")
+    eq(picker.y, 225, "just below the button")
+    eq(picker.capture, true)
+    eq(picker.onTop, true)
     near(picker.initial.r, 1)
     near(picker.initial.g, 0x80 / 255)
 end)
 
-test("accepting a color writes its hex and closes the picker", function()
+test("the grid opens above the button when there is no room below", function()
     setupUI()
-    local c = control("8CCCFF")
-    c.swatch.onclick(c.swatch.target, c.swatch)
-    c.picker.pickedFunc(nil, { r = 1, g = 0.5, b = 0 })
-    eq(c:getText(), "FF8000")
-    near(c.swatch.backgroundColor.g, 0x80 / 255)
-    eq(c.picker.onScreen, false)
+    local c = newGameControl("FF8000", 300)
+    click(c)
+    eq(c.picker.y, 200 - 120 - 1, "above the button")
 end)
 
-test("does nothing without the sandbox page", function()
+test("picking a color stores its hex and shows it on the button", function()
     setupUI()
-    SandboxOptionsScreen = nil
-    SHPColorControl = nil
-    dofile(MOD .. "client/ShowHealingProgress/SHP_SandboxColor.lua")
-    eq(SHPColorControl, nil)
+    local c = newGameControl("8CCCFF")
+    click(c)
+    c.picker:pick({ r = 0.2, g = 0.8, b = 1 })
+    eq(c:getText(), "33CCFF")
+    near(c.button.backgroundColor.r, 0x33 / 255)
+    eq(c.picker.parent, nil, "grid closed")
+    click(c)
+    eq(c.picker.parent ~= nil, true, "opens again")
+end)
+
+test("in-game sandbox options: the text box is swapped for the button in place", function()
+    setupUI()
+    local ui = ISUIElement.new(ISServerSandboxOptionsUI, 100, 100, 800, 600)
+    ui.controls = {}
+    local panel = ui:createPanel({ settings = {
+        { name = "PZShowHealingProgress.RequiredFirstAidLevel", text = "2" },
+        { name = OPTION, text = "00FF00" },
+    } })
+    local c = ui.controls[OPTION]
+    eq(c.Type, "SHPColorControl")
+    eq(panel.controls[OPTION], c, "page table")
+    eq(panel.joypadButtonsY[2][1], c, "controller row")
+    eq(c.parent, panel)
+    eq(c.x, 250) eq(c.y, 60) eq(c.width, 200) eq(c.height, 20)
+    eq(c:getText(), "00FF00")
+    eq(c.button.tooltip, "tip")
+    for _, child in ipairs(panel.children) do
+        truthy(child.Type ~= "ISTextEntryBox" or child == ui.controls["PZShowHealingProgress.RequiredFirstAidLevel"], "old text box removed")
+    end
+    eq(ui.controls["PZShowHealingProgress.RequiredFirstAidLevel"].Type, "ISTextEntryBox", "other options untouched")
+end)
+
+test("host server settings: swapped after create, and on later rebuilds", function()
+    setupUI()
+    local screen = ISUIElement.new(ServerSettingsScreen, 0, 0, 1000, 800)
+    screen:create()
+    local c = screen.pageEdit.controls.Mods[OPTION]
+    eq(c.Type, "SHPColorControl")
+    eq(c:getText(), "FF0000")
+    screen.pageEdit:createPanel("Mods", { settings = { { name = OPTION, text = "0000FF" } } })
+    c = screen.pageEdit.controls.Mods[OPTION]
+    eq(c.Type, "SHPColorControl", "rebuilt page too")
+    eq(c:getText(), "0000FF")
+end)
+
+test("a controller can open the grid", function()
+    setupUI()
+    local c = newGameControl("8CCCFF")
+    local joypadData = {}
+    c:setJoypadFocused(true, joypadData)
+    c:onJoypadDown(Joypad.AButton, joypadData)
+    eq(joypadData.focus, c.picker)
 end)
 
 finish("SHP sandbox color")
