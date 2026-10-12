@@ -109,6 +109,36 @@ test("stitching replaces the deep wound line with a stitch line", function()
     eq(onlyLine(store, bp).progress, 1, "capped")
 end)
 
+test("the stitch line stays when a bandage goes over the stitches", function()
+    local bp = newBodyPart()
+    local store = trackedStore(bp)
+    bp.deepWoundTime = 18
+    scan(store, bp)
+    stitch(bp, 10)
+    scan(store, bp)
+    bp.isBandaged = true
+    eq(bp:stitched(), false, "game flag while bandaged")
+    scan(store, bp)
+    local line = onlyLine(store, bp)
+    eq(line.label, "IGUI_health_Stitched")
+    near(line.progress, 0.25)
+    bp.stitchTime = 30 -- keeps counting under the bandage
+    scan(store, bp)
+    near(onlyLine(store, bp).progress, 0.75)
+end)
+
+test("stitched and bandaged between two scans does not look like a healed deep wound", function()
+    local bp = newBodyPart()
+    local store = trackedStore(bp)
+    bp.deepWoundTime = 18
+    scan(store, bp)
+    stitch(bp, 10)
+    bp.isBandaged = true
+    scan(store, bp)
+    local line = onlyLine(store, bp)
+    eq(line.label, "IGUI_health_Stitched")
+end)
+
 test("removing stitches early reopens the deep wound from 0%", function()
     local bp = newBodyPart()
     local store = trackedStore(bp)

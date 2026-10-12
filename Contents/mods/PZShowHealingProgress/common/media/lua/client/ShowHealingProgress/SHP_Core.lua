@@ -10,7 +10,9 @@
     Stitches work the other way: stitching zeroes the deep wound timer and a
     stitch timer counts up instead. Stitches can be removed safely from 40 on
     (removing them earlier reopens the deep wound), so their progress is
-    stitchTime / 40 and needs no tracking.
+    stitchTime / 40 and needs no tracking. Bandaging clears the stitched flag
+    (BodyPart.setBandaged) and removing the bandage sets it again from the
+    stitch timer, which keeps running under the bandage, so we go by the timer.
 
     A healed wound stays at 100% while a bandage, stitches or a splint is still
     on the body part, and disappears once they are all removed.
@@ -51,8 +53,13 @@ local function clamp01(v)
     return v
 end
 
+-- Not bp:stitched(), which is false while a bandage covers the stitches.
+function SHP.isStitched(bp)
+    return bp:getStitchTime() > 0
+end
+
 function SHP.hasTreatment(bp)
-    return bp:bandaged() or bp:stitched() or bp:isSplint() or bp:getSplintFactor() > 0
+    return bp:bandaged() or SHP.isStitched(bp) or bp:isSplint() or bp:getSplintFactor() > 0
 end
 
 local function isNewInjury(wound, value, rec)
@@ -80,7 +87,7 @@ function SHP.updatePart(store, bp, seenStart)
     for _, wound in ipairs(SHP.WOUNDS) do
         local value = wound.get(bp)
         local rec = part[wound.id]
-        if wound.id == "deepWound" and bp:stitched() then
+        if wound.id == "deepWound" and SHP.isStitched(bp) then
             -- Stitching zeroes the timer without healing it; the stitch line takes over.
             part[wound.id] = nil
         elseif value > 0 then
@@ -144,7 +151,7 @@ function SHP.getLines(store, bp)
             end
         end
     end
-    if bp:stitched() then
+    if SHP.isStitched(bp) then
         lines[#lines + 1] = {
             label = SHP.STITCH_LABEL,
             progress = clamp01(bp:getStitchTime() / SHP.STITCH_REMOVABLE),

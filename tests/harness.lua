@@ -2,6 +2,8 @@
     Test harness: assertions and a mock of the bits of the Project Zomboid API
     the mod uses. BodyPart follows the game code (B42.21) where it matters:
       * stitching zeroes the deep wound timer;
+      * the stitched flag reads false while bandaged (setBandaged clears it,
+        removing the bandage sets it again from the stitch timer);
       * removing stitches before 40 reopens the deep wound, from 40 on it
         leaves a small scratch;
       * heal(bp, amount) lowers every wound timer, and an unbandaged (or
@@ -78,7 +80,7 @@ function newBodyPart(index)
     function bp:getFractureTime() return self.fractureTime end
     function bp:getBurnTime() return self.burnTime end
     function bp:getStitchTime() return self.stitchTime end
-    function bp:stitched() return self.isStitched end
+    function bp:stitched() return self.isStitched and not self.isBandaged end
     function bp:bandaged() return self.isBandaged end
     function bp:isSplint() return self.splintFactor > 0 end
     function bp:getSplintFactor() return self.splintFactor end
