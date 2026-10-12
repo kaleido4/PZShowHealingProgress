@@ -3,5 +3,5 @@
     "Sandbox_SHP_RequiredFirstAidLevel": "Required First Aid Level",
     "Sandbox_SHP_RequiredFirstAidLevel_tooltip": "First Aid level needed to see how far a wound has healed in the Health tab.\n0: anyone can see it.\n1-10: the level needed. When treating another player, the level of the one treating counts.\nWounds are still tracked below that level, so the numbers are right as soon as it is reached.",
     "Sandbox_SHP_TextColor": "Text Color",
-    "Sandbox_SHP_TextColor_tooltip": "Color of the healing progress lines in the Health tab.\nClick the color to pick another one. The default is light blue."
+    "Sandbox_SHP_TextColor_tooltip": "Color of the healing progress line in the Health tab.\nClick the color to pick another one. The default is light blue."
 }
