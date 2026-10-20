@@ -42,6 +42,7 @@ local function storeFor(patient)
     remoteStores[key] = remoteStores[key] or {}
     return remoteStores[key]
 end
+SHP.storeFor = storeFor -- also used by SHP_WoundsOverhaul.lua
 
 -- Same source as ISHealthPanel:getDamagedParts.
 local function bodyPartsOf(patient)
@@ -64,18 +65,27 @@ local function scanLocalPlayers()
     end
 end
 
--- Read live from whoever is looking: ISHealthPanel.doctorLevel is taken once,
--- when the panel is made, and from the patient rather than the one treating.
-local function viewerCanSee(panel)
+-- Whether this character (the one looking, not the patient) has the First Aid
+-- level the sandbox asks for. Read live: ISHealthPanel.doctorLevel is taken
+-- once, when the panel is made, and from the patient rather than the one treating.
+function SHP.characterCanSee(character)
     if SHP.requiredLevel() == 0 then return true end
-    local doctor = panel.getDoctor and panel:getDoctor()
-    return doctor ~= nil and SHP.canSee(doctor:getPerkLevel(Perks.Doctor))
+    return character ~= nil and SHP.canSee(character:getPerkLevel(Perks.Doctor))
+end
+
+local function viewerCanSee(panel)
+    return SHP.characterCanSee(panel.getDoctor and panel:getDoctor())
+end
+
+-- "45%", or "~45%" for a guessed start.
+function SHP.percentText(line)
+    local pct = SHP.percent(line.progress) .. "%"
+    if line.est and line.progress < 1 then pct = "~" .. pct end
+    return pct
 end
 
 local function lineText(line)
-    local pct = SHP.percent(line.progress) .. "%"
-    if line.est and line.progress < 1 then pct = "~" .. pct end
-    local text = "- " .. getText("IGUI_SHP_Progress", getText(line.label), pct)
+    local text = "- " .. getText("IGUI_SHP_Progress", getText(line.label), SHP.percentText(line))
     if line.hint then text = text .. " (" .. getText(line.hint) .. ")" end
     return text
 end

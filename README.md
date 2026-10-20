@@ -56,6 +56,11 @@ Game behavior worth knowing:
 - **Deep wounds** stop at a timer of 3 (around 80-85%) unless they are bandaged and have no glass in them. Without a bandage, a deep wound never fully heals.
 - **Stitches**: stitching zeroes the deep wound timer, and a stitch timer counts up instead (from 1-27 depending on the doctor's First Aid level, up to 50). Removing stitches below 40 reopens the deep wound. From 40 on, removing them leaves only a small scratch. So stitch progress is `stitchTime / 40`.
 
+## Compatibility
+
+- **Casualties Undead**: works alongside. Both mods add lines under each body part in the Health tab, in either load order. Its own conditions (sepsis, organs, ...) change limb health, not the wound timers, so they do not move the percentage; its botched treatments do, and that is handled like any wound getting worse.
+- **Wounds Overhaul**: it replaces the vanilla Health tab with its own panel, so the lines above are not on screen. Instead the progress goes into the note beside the matching wound in its panel, e.g. `Fracture   splinted, 45% healed` (`SHP_WoundsOverhaul.lua`, wrapping `WoundsBodyView:refresh`). Its examination gate decides what is shown, since the progress rides on its own entries, and the Required First Aid Level still applies. Packing a bullet wound gets no number: it borrows the stitch clock and holds it near zero until its own countdown seals the wound. The deep wound hints and the 100% lines that stay while a bandage is on are not shown there, because its panel drops a wound's entry as soon as it heals. Without Wounds Overhaul none of this runs.
+
 ## Layout
 
 ```
@@ -65,6 +70,7 @@ Contents/mods/PZShowHealingProgress/
     client/ShowHealingProgress/SHP_Core.lua     wound tracking (unit-tested)
     client/ShowHealingProgress/SHP_Client.lua   health panel lines
     client/ShowHealingProgress/SHP_SandboxColor.lua   color button on the sandbox screens
+    client/ShowHealingProgress/SHP_WoundsOverhaul.lua   progress in Wounds Overhaul's panel
     shared/Translate/EN/IG_UI.json
     shared/Translate/EN/Sandbox.json
   common/media/sandbox-options.txt

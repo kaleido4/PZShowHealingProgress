@@ -17,4 +17,5 @@ cd "$PZ_DIR"
 ./jre64/bin/java -Droot="$ROOT" -cp "$ROOT/build;projectzomboid.jar" KahluaRunner \
     "$ROOT/tests/test_core.lua" \
     "$ROOT/tests/test_client.lua" \
-    "$ROOT/tests/test_sandbox_color.lua"
+    "$ROOT/tests/test_sandbox_color.lua" \
+    "$ROOT/tests/test_woundsoverhaul.lua"
